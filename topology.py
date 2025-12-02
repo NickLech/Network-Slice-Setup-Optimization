@@ -5,7 +5,7 @@ import threading
 import time
 
 from mininet.net import Mininet
-from mininet.node import Controller
+from mininet.node import RemoteController
 from mininet.cli import CLI
 from mininet.link import TCLink
 from mininet.log import setLogLevel
@@ -21,7 +21,7 @@ def scalable_topology(K=3, T=20, auto_recover=True):
     - ogni T sec cade un link leaf<->spine casuale
     """
 
-    net = Mininet(controller=Controller, link=TCLink)
+    net = Mininet(controller=RemoteController, link=TCLink)
     net.addController("c0")
 
     # ----- SPINE -----
