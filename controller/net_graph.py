@@ -204,6 +204,8 @@ class NetGraph:
         return link in self.links
 
     def find_paths(self, host1: NetHost, host2: NetHost):
+        if host1 == host2:
+            return []
         if not host1 in self.nodes or not host2 in self.nodes:
             return None
         paths: list[list[NetLink]] = []
@@ -264,7 +266,7 @@ class NetGraph:
             if path != None:
                 return path
 
-        opt_options = ["none", "bw", "delay"]
+        opt_options = ["none", "bw", "delay", "hops"]
         if not opt in opt_options:
             raise Exception("Invalid optimization")
         paths = self.find_paths(host1, host2)
@@ -280,11 +282,14 @@ class NetGraph:
                 paths = list(filter(lambda path: min(link.bw for link in path) == curr_bw, paths)) #Isolate all paths with bw equal to the current top one
                 paths.sort(key=lambda path: sum(link.delay for link in path)) #Also sort them by delay
             the_path = paths[0]
+        elif opt == "hops":
+            paths.sort(key=lambda path: len(path))
+            the_path = paths[0]
         else:
             paths.sort(key=lambda path: sum(link.delay for link in path))
             the_path = paths[0]
         self._cache_add(host1, host2, the_path, opt)
-        return paths[0]
+        return the_path
 
 class NetGraphTests(unittest.TestCase):
     def test_host_equal(self):
