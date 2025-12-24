@@ -7,7 +7,7 @@ import json
 from subprocess import Popen
 import os
 
-from comnetsemu.net import Containernet
+from comnetsemu.net import Containernet, VNFManager
 from comnetsemu.node import DockerHost
 
 from mininet.net import Node
@@ -58,6 +58,7 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     
     cleanup()
     net = Containernet(controller=RemoteController, link=TCLink)
+    mgr = VNFManager(net)
     net.addController("c0")
 
     with open(COMMON_CONFIG_FILE) as conf:
@@ -101,9 +102,14 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
         for spine in selected_spines:
              net.addLink(spine, leaf, delay="5ms", custom_bw="100")
 
-        # Add hosts
+        # Add hosts as DockerHost
         for _ in range(K):
-            host = net.addHost(f"h{len(net.hosts) + 1}")
+            #host = net.addHost(f"h{len(net.hosts) + 1}")
+            host = net.addDockerHost(
+                f"h{len(net.hosts) + 1}",
+                dimage="ubuntu:22.04",
+                docker_args={}
+            )
             net.addLink(host, leaf, custom_bw="50")
 
 
@@ -284,26 +290,43 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     print(f"Stream Server: {stream_server_host.name} ({stream_server_ip})")
     print(f"Stream Client: {stream_client_host.name} ({stream_client_ip})")
     
-    # Start web server
+    # Start server containers
     print(f"\nStarting web server on {web_server_host.name}...")
-    web_server_host.cmd('docker run -d --name web_server -p 80:80 nginx:alpine')
+    web_server_container = mgr.addContainer(
+        "web_server",
+        web_server_host.name,
+        "nginx:alpine",
+        "nginx -g 'daemon off;'"
+    )
     
-    # Start streaming server
     print(f"Starting stream server on {stream_server_host.name}...")
-    stream_server_host.cmd('docker run -d --name stream_server -p 80:4380 nginx:alpine')
+    stream_server_container = mgr.addContainer(
+        "stream_server",
+        stream_server_host.name,
+        "nginx:alpine",
+        "nginx -g 'daemon off;'"
+    )
     
     time.sleep(3)
     
     # Simulate streaming with a large file (100 MB)
     print("Creating video file...")
-    stream_server_host.cmd('docker exec stream_server sh -c "dd if=/dev/zero of=/usr/share/nginx/html/video.dat bs=1M count=100 2>/dev/null"')
+    import docker
+    docker_client = docker.from_env()
+    container = docker_client.containers.get("stream_server")
+    container.exec_run('sh -c "dd if=/dev/zero of=/usr/share/nginx/html/video.dat bs=1M count=100"')
     
-    # Start clients
-    print(f"Starting web client on {web_client_host.name}...")
+    # Install tools on clients (blocking calls)
+    print(f"\nInstalling curl on {web_client_host.name}...")
+    web_client_host.cmd('apt-get update && apt-get install -y curl')
+    
+    print(f"Installing wget on {stream_client_host.name}...")
+    stream_client_host.cmd('apt-get update && apt-get install -y wget')
+    
+    # Start client services
+    print("\nStarting client services...")
     web_client_host.cmd(f'while true; do curl -s http://{web_server_ip}:80 > /dev/null 2>&1; sleep 1; done &')
-    
-    print(f"Starting stream client on {stream_client_host.name}...")
-    stream_client_host.cmd(f'while true; do wget -q -O /dev/null http://{stream_server_ip}:4380/video.dat 2>&1; sleep 0.1; done &')
+    stream_client_host.cmd(f'while true; do wget -q -O /dev/null http://{stream_server_ip}:80/video.dat 2>&1; sleep 0.1; done &')
     
     print("\n*** Services started ***\n")
 
@@ -346,21 +369,20 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
 
     # Stop services clients
     if web_client_host:
-        web_client_host.cmd('pkill -f "curl.*http://"')
+        web_client_host.cmd('pkill -f "curl"')
     
     if stream_client_host:
-        stream_client_host.cmd('pkill -f "wget.*video.dat"')
+        stream_client_host.cmd('pkill -f "wget"')
     
-    # Stop and remove server containers
-    if web_server_host:
-        web_server_host.cmd('docker stop web_server 2>/dev/null')
-        web_server_host.cmd('docker rm web_server 2>/dev/null')
-    
-    if stream_server_host:
-        stream_server_host.cmd('docker stop stream_server 2>/dev/null')
-        stream_server_host.cmd('docker rm stream_server 2>/dev/null')
+    # Stop and remove server containers using VNFManager
+    try:
+        mgr.removeContainer("web_server")
+        mgr.removeContainer("stream_server")
+    except Exception as e:
+        print(f"Error removing containers: {e}")
 
     net.stop()
+    mgr.stop()
     cleanup()
     queues.clear_queues()
 

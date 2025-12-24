@@ -30,3 +30,22 @@ In a second terminal:
 ```
 sudo python3 topology.py
 ```
+
+# Check mininet-host connectivity and services
+net tools:
+```
+h13 ifconfig
+```
+
+services:
+```
+h17 curl -I http://10.0.0.13:80
+h8 wget http://10.0.0.3:4380/video.dat
+```
+
+# Every time you restart make sure to clean all the previous stroz
+```
+sudo mn -c
+docker stop $(docker ps -aq)
+docker rm $(docker ps -aq)
+```
