@@ -404,7 +404,8 @@ class SliceController(app_manager.RyuApp):
 
         if stored.qos_violations >= 3:
             logger.warning(f"[SERVICE] {service.domain} will be migrated")
-            self.mark_service_for_migration(stored)
+            self.migrate_service(stored)
+
 
 
 
@@ -417,24 +418,6 @@ class SliceController(app_manager.RyuApp):
         except Exception:
             logger.error("[QoS] Queue update failed")
 
-
-    def mark_service_for_migration(self, service: Service):
-        with self.service_lock:
-            stored = self.services.get_service_by_id(service.id)
-            if stored is None:
-                return
-
-            stored.qos_violations = 0
-
-            stored.curr_ip = None
-            stored.slice = None
-
-            logger.info(
-                f"[SERVICE] {stored.domain} marked for migration (file update only)"
-            )
-
-            self.services.dump(self.data['conf']['service_list_file'])
-
     def reset_service_violations(self, service: Service):
         with self.service_lock:
             stored = self.services.get_service_by_id(service.id)
@@ -442,6 +425,55 @@ class SliceController(app_manager.RyuApp):
                 stored.qos_violations = 0
                 self.services.dump(self.data['conf']['service_list_file'])
 
+
+    def assign_new_ip(self, service: Service) -> str:
+        """
+        Assign a new IP to a service, avoiding conflicts with already assigned IPs.
+        """
+        base_ip = "10.0.0."  # puoi parametrizzare dalla tua configurazione
+        used_ips = {s.curr_ip for s in self.services.services.values() if s.curr_ip}
+        for i in range(2, 254):
+            candidate = f"{base_ip}{i}"
+            if candidate not in used_ips:
+                service.curr_ip = candidate
+                logger.info(f"[SERVICE] Assigned new IP {candidate} to {service.domain}")
+                return candidate
+        raise Exception("No free IPs available for service migration")
+
+    def migrate_service(self, service: Service):
+        """
+        Perform migration of a service:
+        - Assign a new IP
+        - Update DNS record
+        - Reset slice info
+        """
+        old_ip = service.curr_ip
+        try:
+            new_ip = self.assign_new_ip(service)
+        except Exception as e:
+            logger.error(f"[SERVICE] Could not assign new IP for {service.domain}: {e}")
+            return
+
+        if self.dns_conn:
+            try:
+                self.dns_conn.update_record(
+                    domain=service.domain,
+                    zone=service.domain,
+                    oldip=old_ip,
+                    newip=new_ip
+                )
+                logger.info(f"[SERVICE] DNS updated for {service.domain}: {old_ip} -> {new_ip}")
+            except Exception as e:
+                logger.error(f"[SERVICE] DNS update failed for {service.domain}: {e}")
+
+        with self.service_lock:
+            stored = self.services.get_service_by_id(service.id)
+            if stored:
+                stored.curr_ip = new_ip
+                stored.slice = None  # resetta la slice se necessario
+                stored.qos_violations = 0
+                self.services.dump(self.data['conf']['service_list_file'])
+                logger.info(f"[SERVICE] {service.domain} migration completed: new IP {new_ip}")
 
 
     def __init__(self, *_args, **_kwargs):
