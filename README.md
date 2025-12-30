@@ -36,6 +36,28 @@ In a second terminal:
 sudo python3 topology.py
 ```
 
+Every time you restart make sure to cleanup everything
+```
+sudo mn -c
+docker stop $(docker ps -aq)
+docker rm $(docker ps -aq)
+rm -rf config/dns_config/zones/*
+```
+
+Alternative way to run
+
+In a terminal:
+```
+ryu run controller/controller_main.py
+```
+
+In a second terminal:
+```
+bash run_net.sh
+```
+
+When you quit mininet CLI, the cleanup will be automatically done.
+
 # Check mininet-host connectivity and services
 let this be the output of the service start phase:
 ```
@@ -63,13 +85,6 @@ Streaming service (the download takes a while):
 ```
 mininet> h18 netstat -tlnp | grep 80
 mininet> h11 curl -o /dev/null http://10.0.0.18:80/video.dat
-```
-
-# Every time you restart make sure to clean all the previous stroz
-```
-sudo mn -c
-docker stop $(docker ps -aq)
-docker rm $(docker ps -aq)
 ```
 
 # TODO
