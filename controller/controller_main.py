@@ -282,7 +282,7 @@ class RestServer(wsgi.ControllerBase):
         domain: str, subscriber: str, qos_index: int, service_type: str
         """
         body: typing.Dict = json.loads(req.body.decode())
-        required = ["domain", "subscriber", "qos", "type"]
+        required = ["domain", "subscriber", "qos", "service_type"]
         has_required = all(required_param in body for required_param in required)
         if not has_required:
             return {'status': 'E_MISSING_PARAMS'}, 400

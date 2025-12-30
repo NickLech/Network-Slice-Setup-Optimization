@@ -316,6 +316,41 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     container = docker_client.containers.get("stream_server")
     container.exec_run('sh -c "dd if=/dev/zero of=/usr/share/nginx/html/video.dat bs=1M count=100"')
     
+    # Register services with the controller
+    print("\nRegistering services with controller...")
+    
+    web_service_response = requests.post(
+        f"http://{SERVER_IP}:{SERVER_PORT}/api/v0/service/create",
+        headers={'ContentType': 'application/json'},
+        json={
+            "domain": "web.service.mn",
+            "subscriber": web_client_ip,
+            "qos": 0,
+            "service_type": "browsing"
+        }
+    )
+    
+    if web_service_response.status_code == 200:
+        print(f"Web service registered: {web_service_response.json()}")
+    else:
+        print(f"Failed to register web service: {web_service_response.json()}")
+    
+    stream_service_response = requests.post(
+        f"http://{SERVER_IP}:{SERVER_PORT}/api/v0/service/create",
+        headers={'ContentType': 'application/json'},
+        json={
+            "domain": "stream.service.mn",
+            "subscriber": stream_client_ip,
+            "qos": 2,
+            "service_type": "streaming"
+        }
+    )
+    
+    if stream_service_response.status_code == 200:
+        print(f"Stream service registered: {stream_service_response.json()}")
+    else:
+        print(f"Failed to register stream service: {stream_service_response.json()}")
+    
     # Start client services
     print("\nStarting client services...")
     web_client_host.cmd(f'while true; do curl -s http://{web_server_ip}:80 > /dev/null 2>&1; sleep 1; done &')
