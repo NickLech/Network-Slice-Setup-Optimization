@@ -265,15 +265,85 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     # ----- SERVICE INITIALIZATION -----
     print("\n*** Starting Services ***\n")
     
-    # Web service on slice 0
-    web_server_ip = slices[0][0]
+    # Client IPs
     web_client_ip = slices[0][1]
-    
-    # Streaming service on slice 2
-    stream_server_ip = slices[2][0]
     stream_client_ip = slices[2][1]
     
-    # Find host objects
+    # Ping all hosts to trigger path creation
+    print("Pre-creating paths for service placement...")
+    
+    # Slice 0 (Web server)
+    for server_ip in slices[0]:
+        if server_ip != web_client_ip:
+            print(f"Creating path: {web_client_ip} -> {server_ip}")
+            web_client_host = None
+            for h in net.hosts:
+                if h.IP() == web_client_ip:
+                    web_client_host = h
+                    break
+            if web_client_host:
+                web_client_host.cmd(f'ping -c 1 -W 1 {server_ip} > /dev/null 2>&1 &')
+    
+    # Slice 2 (Stream service)
+    for server_ip in slices[2]:
+        if server_ip != stream_client_ip:
+            print(f"Creating path: {stream_client_ip} -> {server_ip}")
+            stream_client_host = None
+            for h in net.hosts:
+                if h.IP() == stream_client_ip:
+                    stream_client_host = h
+                    break
+            if stream_client_host:
+                stream_client_host.cmd(f'ping -c 1 -W 1 {server_ip} > /dev/null 2>&1 &')
+    
+    time.sleep(2)
+    
+    # Register services to controller
+    print("\nRegistering services to controller...")
+    
+    web_service_response = requests.post(
+        f"http://{SERVER_IP}:{SERVER_PORT}/api/v0/service/create",
+        headers={'ContentType': 'application/json'},
+        json={
+            "domain": "web.service.mn",
+            "subscriber": web_client_ip,
+            "qos": 0,
+            "service_type": "browsing"
+        }
+    )
+    
+    web_service_id = None
+    web_server_ip = None
+    if web_service_response.status_code == 200:
+        response_data = web_service_response.json()
+        print(f"Web service registered: {response_data}")
+        web_service_id = response_data.get('service_id')
+        web_server_ip = response_data.get('service_ip')
+    else:
+        print(f"Failed to register web service: {web_service_response.json()}")
+    
+    stream_service_response = requests.post(
+        f"http://{SERVER_IP}:{SERVER_PORT}/api/v0/service/create",
+        headers={'ContentType': 'application/json'},
+        json={
+            "domain": "stream.service.mn",
+            "subscriber": stream_client_ip,
+            "qos": 2,
+            "service_type": "streaming"
+        }
+    )
+    
+    stream_service_id = None
+    stream_server_ip = None
+    if stream_service_response.status_code == 200:
+        response_data = stream_service_response.json()
+        print(f"Stream service registered: {response_data}")
+        stream_service_id = response_data.get('service_id')
+        stream_server_ip = response_data.get('service_ip')
+    else:
+        print(f"Failed to register stream service: {stream_service_response.json()}")
+    
+    # Find server and client hosts
     web_server_host = None
     web_client_host = None
     stream_server_host = None
@@ -284,12 +354,12 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
             web_server_host = host
         elif host.IP() == web_client_ip:
             web_client_host = host
-        elif host.IP() == stream_server_ip:
-            stream_server_host = host
         elif host.IP() == stream_client_ip:
             stream_client_host = host
+        elif host.IP() == stream_server_ip:
+            stream_server_host = host
     
-    print(f"Web Server: {web_server_host.name} ({web_server_ip})")
+    print(f"\nWeb Server: {web_server_host.name} ({web_server_ip})")
     print(f"Web Client: {web_client_host.name} ({web_client_ip})")
     print(f"Stream Server: {stream_server_host.name} ({stream_server_ip})")
     print(f"Stream Client: {stream_client_host.name} ({stream_client_ip})")
@@ -318,47 +388,6 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     docker_client = docker.from_env()
     container = docker_client.containers.get("stream_server")
     container.exec_run('sh -c "dd if=/dev/zero of=/usr/share/nginx/html/video.dat bs=1M count=100"')
-    
-    # Register services with the controller
-    print("\nRegistering services with controller...")
-    
-    web_service_response = requests.post(
-        f"http://{SERVER_IP}:{SERVER_PORT}/api/v0/service/create",
-        headers={'ContentType': 'application/json'},
-        json={
-            "domain": "web.service.mn",
-            "subscriber": web_client_ip,
-            "qos": 0,
-            "service_type": "browsing"
-        }
-    )
-    
-    web_service_id = None
-    if web_service_response.status_code == 200:
-        response_data = web_service_response.json()
-        print(f"Web service registered: {response_data}")
-        web_service_id = response_data.get('service_id')
-    else:
-        print(f"Failed to register web service: {web_service_response.json()}")
-    
-    stream_service_response = requests.post(
-        f"http://{SERVER_IP}:{SERVER_PORT}/api/v0/service/create",
-        headers={'ContentType': 'application/json'},
-        json={
-            "domain": "stream.service.mn",
-            "subscriber": stream_client_ip,
-            "qos": 2,
-            "service_type": "streaming"
-        }
-    )
-    
-    stream_service_id = None
-    if stream_service_response.status_code == 200:
-        response_data = stream_service_response.json()
-        print(f"Stream service registered: {response_data}")
-        stream_service_id = response_data.get('service_id')
-    else:
-        print(f"Failed to register stream service: {stream_service_response.json()}")
     
     # Start client services
     print("\nStarting client services...")
