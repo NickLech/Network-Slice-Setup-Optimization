@@ -122,28 +122,6 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     # by the time we use it
     net.waitConnected()
 
-    #try:
-    #    dns_url = f"127.0.0.1:{common_config['dns_api_port']}"
-    #    dns_conn: DNSServer = DNSServer.connect("admin", "admin", dns_url)
-    #except:
-    #    import traceback
-    #    traceback.print_exc()
-    #    print(f"DNS login failed")
-    #    net.stop()
-    #    cleanup()
-    #    return
-    #
-    #if not isinstance(dns_conn, DNSServer):
-    #    print(f"DNS login failed")
-    #    net.stop()
-    #    cleanup()
-    #    return
-    #
-    #print(f"DNS session token: {dns_conn.token}")
-    #print(f"Create zone: {dns_conn.create_zone_for_net('service.mn')}")
-    #print(f"Add record: {dns_conn.add_record('0.service.mn', 'service.mn', 3600, '10.0.0.1')}")
-    #print(f"Records: {dns_conn.get_zone_records('service.mn')}")
-
     # ----- DYNAMIC SLICE CREATION -----
     def create_slices(hosts, num_slices):
         slices = {i: [] for i in range(num_slices)}
@@ -531,11 +509,6 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
         headers={'ContentType': 'application/json'},
         json={}
     )
-
-    #print(f"Update DNS record: {dns_conn.update_record('0.service.mn', 'service.mn', '10.0.0.1', '10.0.0.2')}")
-    #print(f"Remove DNS record: {dns_conn.delete_record('0.service.mn', 'service.mn', '10.0.0.2')}")
-    #print(f"Delete zone: {dns_conn.delete_zone('service.mn')}")
-    #del dns_conn
 
     # Stop services clients
     if web_client_host:
