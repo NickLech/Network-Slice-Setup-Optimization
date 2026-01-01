@@ -26,6 +26,8 @@ import docker
 
 from pathlib import Path
 
+from typing import Dict, Any
+
 SERVER_IP = '127.0.0.1'
 SERVER_PORT = 8080
 
@@ -375,18 +377,22 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     print("\n*** Services started ***\n")
 
     # ----- SERVICE MIGRATION LOOP -----
-    service_locations = {}
+    service_locations: Dict[str, Any] = {}
     if web_service_id is not None:
         service_locations[web_service_id] = {
             'container_name': 'web_server',
             'current_ip': web_server_ip,
-            'current_host': web_server_host
+            'current_host': web_server_host,
+            'client_ip': web_client_ip,
+            'client_host': web_client_host
         }
     if stream_service_id is not None:
         service_locations[stream_service_id] = {
             'container_name': 'stream_server',
             'current_ip': stream_server_ip,
-            'current_host': stream_server_host
+            'current_host': stream_server_host,
+            'client_ip': stream_client_ip,
+            'client_host': stream_client_host
         }
 
     # Monitor services.obj and migrate containers when controller updates service IPs
@@ -464,6 +470,11 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
                             # Update dictionary
                             service_locations[service.id]['current_ip'] = new_ip
                             service_locations[service.id]['current_host'] = new_host
+
+                            #client_ip: str = service_locations[service.id]['client_ip']
+                            #print(f"Flushing DNS cache for client {client_ip}")
+                            #client_host: DockerHost = service_locations[service.id]['client_host']
+                            #client_host.cmd("systemd-resolve --flush-caches")
                             
                             print(f"*** MIGRATION COMPLETED for service {service.id} ***\n")
                             
