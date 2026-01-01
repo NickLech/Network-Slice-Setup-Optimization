@@ -421,7 +421,7 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
                     
                     # Check if migration is needed
                     if new_ip and new_ip != current_location['current_ip']:
-                        print(f"\n*** MGRATION REQUEST DETECTED for service {service.id} ({service.domain}) ***")
+                        print(f"\n*** MIGRATION REQUEST DETECTED for service {service.id} ({service.domain}) ***")
                         print(f"Current IP: {current_location['current_ip']} -> New IP: {new_ip}")
                         
                         # Find the new host for this IP
