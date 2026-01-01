@@ -112,7 +112,7 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
             host = net.addDockerHost(
                 f"h{len(net.hosts) + 1}",
                 dimage="dev_test",
-                docker_args={"hostname": f"h{len(net.hosts) + 1}"}
+                docker_args={"hostname": f"h{len(net.hosts) + 1}", "dns": [common_config['dns_ip']]}
             )
             net.addLink(host, leaf, custom_bw="50")
 
@@ -369,8 +369,8 @@ def scalable_topology(K=3, T=20, auto_recover=True, num_slices=3):
     
     # Start client services
     print("\nStarting client services...")
-    web_client_host.cmd(f'while true; do curl -s http://{web_server_ip}:80 > /dev/null 2>&1; sleep 1; done &')
-    stream_client_host.cmd(f'while true; do curl -s -o /dev/null http://{stream_server_ip}:80/video.dat 2>&1; sleep 2; done &')
+    web_client_host.cmd(f'while true; do curl -s http://web.service.mn:80 > /dev/null 2>&1; sleep 1; done &')
+    stream_client_host.cmd(f'while true; do curl -s -o /dev/null http://stream.service.mn:80/video.dat 2>&1; sleep 2; done &')
     
     print("\n*** Services started ***\n")
 
